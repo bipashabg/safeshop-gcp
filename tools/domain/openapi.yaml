@@ -1,0 +1,44 @@
+openapi: 3.0.0
+info:
+  title: Domain Risk Checker
+  description: Checks if a website domain is suspicious based on age and registration data
+  version: 1.0.0
+servers:
+  - url: https://safeshop-domain-tool-155586116526.asia-south1.run.app
+paths:
+  /check-domain:
+    post:
+      operationId: checkDomain
+      summary: Check if a domain is suspicious
+      description: Returns domain age, creation date, and risk level (low/medium/high)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  description: The full URL or domain to check
+              required:
+                - url
+      responses:
+        "200":
+          description: Domain risk assessment
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  domain:
+                    type: string
+                  created:
+                    type: string
+                  age:
+                    type: string
+                  risk:
+                    type: string
+                    enum: [low, medium, high, unknown]
+                  verdict:
+                    type: string
