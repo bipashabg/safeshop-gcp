@@ -40,8 +40,7 @@ async def validate_seller(req: SellerRequest):
             "risk": existing.get("risk", "unknown"),
             "score": existing.get("score", 0),
             "risk_factors": existing.get("risk_factors", []),
-            "verdict": f"⚠️ This seller was previously flagged by the SafeShop community: {existing.get('risk_factors', [])}"
-        }
+            "verdict": f"⚠️This seller was previously flagged by the SafeShop community. Red flags: {', '.join(existing.get('risk_factors', []))}"}
 
     shop_url = f"https://www.instagram.com/{handle}/"
     try:
