@@ -1,6 +1,9 @@
 import os
 import mcp.server.transport_security as _ts
 
+from review import analyse_reviews_logic
+from delivery import track_delivery_logic
+
 async def _always_pass(self, request, is_post=False):
     return None
 _ts.TransportSecurityMiddleware.validate_request = _always_pass
@@ -24,6 +27,8 @@ def get_db():
         )
         _db = client["safeshop"]
     return _db
+
+#domain tool
 
 @mcp.tool()
 async def check_domain(url: str) -> dict:
@@ -62,6 +67,8 @@ async def check_domain(url: str) -> dict:
         "risk": risk,
         "verdict": f"Domain is {age_label}. Risk: {risk.upper()}"
     }
+
+#seller tool
 
 @mcp.tool()
 async def validate_seller(handle: str) -> dict:
@@ -166,6 +173,32 @@ async def report_seller(domain: str, reason: str) -> dict:
     except Exception as e:
         return {"success": False, "error": str(e)}
     return {"success": True, "message": "Report saved."}
+
+#reviews analyser
+
+@mcp.tool()
+async def analyse_reviews(product_url: str) -> dict:
+    """
+    Analyse product reviews for fake or manipulated patterns.
+    Call this when user provides an Amazon, Flipkart or any 
+    e-commerce product URL and wants to verify review authenticity.
+    Returns fake score and specific signals detected.
+    """
+
+    return await analyse_reviews_logic(product_url)
+
+#delivery tracker
+
+@mcp.tool()
+async def track_delivery(tracking_number: str, carrier: str) -> dict:
+    """
+    Check a delivery tracking number for fraud anomalies.
+    Call this when user provides a tracking number and carrier name.
+    Also generates a dispute letter template if delivery fraud is detected.
+    Returns anomalies found and a pre-filled dispute template.
+    """
+
+    return await track_delivery_logic(tracking_number, carrier)
 
 app = mcp.streamable_http_app()
 
