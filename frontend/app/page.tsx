@@ -16,7 +16,7 @@ interface ScanResult {
   action?: string;
 }
 
-const tabs: { id: Tab; label: string; emoji: string; placeholder: string }[] = [
+const tabs: { id: Tab; label: string; placeholder: string }[] = [
   { id: "url", label: "Website", placeholder: "https://quick-deals-shop.in" },
   { id: "seller", label: "Instagram", placeholder: "@cheap_deals_2024" },
   { id: "review", label: "Reviews", placeholder: "https://amazon.in/dp/B08N5WRWNW" },
@@ -244,7 +244,7 @@ export default function Home() {
             {tabs.map(t=>(
               <button key={t.id} onClick={()=>{ setActiveTab(t.id); setResult(null); setAgentMessages([]); }}
                 style={{ flex:1,padding:isMobile?"7px 2px":"8px 4px",fontSize:isMobile?10:12,fontWeight:activeTab===t.id?500:400,color:activeTab===t.id?"#F2F0EB":"rgba(242,240,235,0.45)",borderRadius:8,border:"none",background:activeTab===t.id?"#161B26":"transparent",fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s" }}>
-                {t.emoji}{!isMobile && " " + t.label}
+                {!isMobile && " " + t.label}
                 {isMobile && <div style={{ fontSize:9,marginTop:2,color:"inherit" }}>{t.label}</div>}
               </button>
             ))}
@@ -354,7 +354,6 @@ export default function Home() {
           ].map((s,i)=>(
             <div key={i} className="step-card" style={{ borderRadius:isMobile?i===0?"16px 16px 0 0":i===3?"0 0 16px 16px":0:i===0?"16px 0 0 16px":i===3?"0 16px 16px 0":0 }}>
               <div style={{ fontFamily:"'Syne',sans-serif",fontSize:40,fontWeight:800,color:"rgba(0,232,122,0.1)",lineHeight:1,marginBottom:20 }}>{s.n}</div>
-              <div style={{ fontSize:26,marginBottom:14 }}>{s.e}</div>
               <div style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,marginBottom:8 }}>{s.t}</div>
               <div style={{ fontSize:13,color:"rgba(242,240,235,0.5)",lineHeight:1.6 }}>{s.d}</div>
             </div>
@@ -374,7 +373,6 @@ export default function Home() {
               {t:"Delivery & Tracking Fraud",d:"Fake tracking numbers, packages stuck for weeks, marked delivered but never arrived. We detect anomalies and write your chargeback letter.",tag:"Post-Purchase Fraud"},
             ].map((c,i)=>(
               <div key={i} className="fraud-card">
-                <div style={{ fontSize:28,marginBottom:16 }}>{c.e}</div>
                 <div style={{ fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:17,marginBottom:8 }}>{c.t}</div>
                 <div style={{ fontSize:13,color:"rgba(242,240,235,0.5)",lineHeight:1.7,marginBottom:14 }}>{c.d}</div>
                 <div style={{ display:"inline-block",background:"rgba(0,232,122,0.08)",border:"1px solid rgba(0,232,122,0.2)",color:"#00E87A",fontSize:11,padding:"3px 10px",borderRadius:100,fontWeight:500 }}>{c.tag}</div>
