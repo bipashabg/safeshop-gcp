@@ -3,6 +3,11 @@ import mcp.server.transport_security as _ts
 
 from review import analyse_reviews_logic
 from delivery import track_delivery_logic
+from security import (
+        hash_ip, check_rate_limit, record_rate_limit,
+    detect_coordinated_attack, validate_proof,
+    update_seller_confidence, get_seller_confidence_summary
+)
 
 async def _always_pass(self, request, is_post=False):
     return None
@@ -199,6 +204,145 @@ async def track_delivery(tracking_number: str, carrier: str) -> dict:
     """
 
     return await track_delivery_logic(tracking_number, carrier)
+
+@mcp.tool()
+async def report_scam(
+    seller_handle: str,
+    description: str,
+    payment_method: str,
+    amount_paid: str,
+    order_id: str = "",
+    evidence_url: str = "",
+    user_ip: str = "unknown"
+) -> dict:
+    """
+    Submit a verified victim report about a seller who scammed you.
+    Call this when a user says they were scammed, received wrong product,
+    seller went unresponsive, or item never arrived.
+    Requires a description of what happened (min 50 chars).
+    Optional but recommended: order ID, screenshot URL, payment method.
+    Returns whether report was accepted and what to do next.
+    """
+    ip_hash = hash_ip(user_ip)
+    rate_check = check_rate_limit(ip_hash, seller_handle)
+    if not rate_check["allowed"]:
+        return {"accepted": False, "reason": rate_check["reason"]}
+
+    proof = validate_proof(description, evidence_url, order_id)
+    if not proof["valid"]:
+        return {
+            "accepted": False,
+            "reason": proof["reason"],
+            "tip": "The more detail you provide, the stronger your report. Include order ID or a screenshot link if possible."
+        }
+
+    if detect_coordinated_attack(seller_handle):
+        try:
+            db = get_db()
+            db["quarantined_reports"].insert_one({
+                "target": seller_handle,
+                "description": description,
+                "ip_hash": ip_hash,
+                "quarantine_reason": "coordinated_attack_suspected",
+                "reportedAt": datetime.now(timezone.utc).isoformat()
+            })
+        except Exception:
+            pass
+        return {
+            "accepted": True,
+            "quarantined": True,
+            "message": "Your report was received but is under review due to unusual activity around this seller. It will be processed within 24 hours."
+        }
+
+    try:
+        db = get_db()
+        db["victim_reports"].insert_one({
+            "target": seller_handle,
+            "description": description,
+            "payment_method": payment_method,
+            "amount_paid": amount_paid,
+            "order_id": order_id,
+            "evidence_url": evidence_url,
+            "evidence_score": proof["evidence_score"],
+            "ip_hash": ip_hash,
+            "reportedAt": datetime.now(timezone.utc).isoformat()
+        })
+    except Exception as e:
+        return {"accepted": False, "reason": f"Database error: {str(e)}"}
+
+    record_rate_limit(ip_hash, seller_handle)
+
+    threshold_crossed = update_seller_confidence(
+        seller_handle, "victim_report", proof["evidence_score"]
+    )
+
+    dispute_letter = f"""DISPUTE LETTER — ONLINE SHOPPING FRAUD
+=======================================
+To: [Your Bank / UPI Provider / Payment Gateway]
+Subject: Transaction Dispute — Item Not as Described / Not Received
+
+I am writing to formally dispute a transaction on my account.
+
+Seller: {seller_handle}
+Payment Method: {payment_method}
+Amount: {amount_paid}
+Order Reference: {order_id if order_id else "Not provided by seller"}
+
+What happened:
+{description}
+
+I have attempted to resolve this with the seller directly without success.
+I request a full chargeback under consumer protection regulations.
+
+Evidence reference: {evidence_url if evidence_url else "Available on request"}
+SafeShop report ID: {seller_handle}-{datetime.now(timezone.utc).strftime('%Y%m%d')}
+
+[Your Full Name]
+[Your Account Number]
+[Date of Transaction]
+"""
+
+    return {
+        "accepted": True,
+        "quarantined": False,
+        "evidence_score": proof["evidence_score"],
+        "threshold_crossed": threshold_crossed,
+        "community_impact": "This seller's fraud confidence score has been updated. Future buyers will see your warning.",
+        "dispute_letter": dispute_letter,
+        "next_steps": [
+            f"Use the dispute letter above to contact {payment_method} support",
+            "Screenshot all conversations with the seller as additional evidence",
+            "File a complaint at cybercrime.gov.in if amount exceeds ₹1000",
+            "Block the seller and report their account on the platform"
+        ]
+    }
+
+@mcp.tool()
+async def check_community_trust(seller_handle: str) -> dict:
+    """
+    Check the community trust score of a seller in MongoDB.
+    Call this when user wants to know if a seller has been reported before,
+    or to understand the confidence level behind a fraud verdict.
+    Returns report counts, confidence score, and whether threshold was crossed.
+    """
+    summary = get_seller_confidence_summary(seller_handle)
+    if not summary["found"]:
+        return {
+            "seller": seller_handle,
+            "status": "No community reports found for this seller.",
+            "confidence_score": 0,
+            "flagged": False
+        }
+    return {
+        "seller": seller_handle,
+        "flagged": summary["flagged"],
+        "confidence_score": summary["confidence_score"],
+        "victim_reports": summary["victim_reports"],
+        "suspicion_reports": summary["suspicion_reports"],
+        "summary": summary["summary"],
+        "verdict": "COMMUNITY FLAGGED — Multiple users have reported issues with this seller." if summary["flagged"]
+                   else f"Low community concern — score {summary['confidence_score']}/100. Not yet flagged."
+    }
 
 app = mcp.streamable_http_app()
 
