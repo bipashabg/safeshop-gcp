@@ -3,19 +3,6 @@ import { useState, useEffect, useRef } from "react";
 
 type Tab = "url" | "seller" | "review" | "delivery";
 
-interface Signal {
-  type: "ok" | "warn" | "bad";
-  text: string;
-}
-
-interface ScanResult {
-  verdict: "safe" | "suspicious" | "dangerous";
-  label: string;
-  summary: string;
-  signals: Signal[];
-  action?: string;
-}
-
 const tabs: { id: Tab; label: string; placeholder: string }[] = [
   { id: "url", label: "Website", placeholder: "https://quick-deals-shop.in" },
   { id: "seller", label: "Instagram", placeholder: "@cheap_deals_2024" },
@@ -23,63 +10,60 @@ const tabs: { id: Tab; label: string; placeholder: string }[] = [
   { id: "delivery", label: "Tracking", placeholder: "Tracking number · carrier name" },
 ];
 
-const mockResults: Record<Tab, ScanResult> = {
-  url: {
-    verdict: "dangerous", label: "DANGEROUS",
-    summary: "This domain was registered only 12 days ago and shows multiple fraud signals. We strongly recommend not purchasing from this site.",
-    signals: [
-      { type: "bad", text: "Domain registered less than 90 days ago — extremely high risk" },
-      { type: "bad", text: "No verifiable business registration found" },
-      { type: "warn", text: "Website content appears copied from a legitimate retailer" },
-      { type: "ok", text: "Not yet on Google Safe Browsing, but flagged by SafeShop AI" },
-    ],
-    action: "Do not enter payment details. Leave this site immediately.",
-  },
-  seller: {
-    verdict: "suspicious", label: "SUSPICIOUS",
-    summary: "This seller account shows patterns common in fraud accounts created for short-term scamming.",
-    signals: [
-      { type: "bad", text: "Handle contains '2024' which is common in throwaway accounts" },
-      { type: "bad", text: "Handle uses high-pressure sales language" },
-      { type: "warn", text: "Community memory: 3 users previously flagged this seller" },
-      { type: "ok", text: "Not currently on Google Safe Browsing threat list" },
-    ],
-    action: "Ask for video proof of the product before any payment.",
-  },
-  review: {
-    verdict: "suspicious", label: "SUSPICIOUS",
-    summary: "Review patterns suggest artificial inflation. Burst posting and generic language detected across multiple reviews.",
-    signals: [
-      { type: "bad", text: "94% of reviews use generic phrases like 'great product, fast shipping'" },
-      { type: "bad", text: "4.9/5 stars from 47 reviews, all posted within 3 days" },
-      { type: "warn", text: "Only 1% one-star reviews, statistically improbable for any real product" },
-      { type: "ok", text: "Product listing itself appears legitimate" },
-    ],
-    action: "Check reviews on independent platforms before purchasing.",
-  },
-  delivery: {
-    verdict: "safe", label: "LEGITIMATE",
-    summary: "Tracking number appears valid and the shipment is progressing normally through the carrier network.",
-    signals: [
-      { type: "ok", text: "Tracking number format matches carrier standard" },
-      { type: "ok", text: "Last update received within normal transit window" },
-      { type: "ok", text: "No known fraud patterns detected in tracking data" },
-      { type: "ok", text: "Carrier records confirm active shipment" },
-    ],
-  },
+function getVerdict(text: string): "safe" | "suspicious" | "dangerous" | "neutral" {
+  const lower = text.toLowerCase();
+  if (lower.includes("dangerous") || lower.includes("do not") || lower.includes("fraud")) return "dangerous";
+  if (lower.includes("suspicious") || lower.includes("caution") || lower.includes("warning")) return "suspicious";
+  if (lower.includes("safe") || lower.includes("legitimate") || lower.includes("genuine") || lower.includes("low risk")) return "safe";
+  return "neutral";
+}
+
+const verdictConfig = {
+  safe:       { color: "#00E87A", bg: "rgba(0,232,122,0.08)",  border: "rgba(0,232,122,0.25)",  label: "SAFE" },
+  suspicious: { color: "#FFB800", bg: "rgba(255,184,0,0.08)",  border: "rgba(255,184,0,0.25)",  label: "SUSPICIOUS" },
+  dangerous:  { color: "#FF3B3B", bg: "rgba(255,59,59,0.08)",  border: "rgba(255,59,59,0.25)",  label: "DANGEROUS" },
+  neutral:    { color: "#F2F0EB", bg: "rgba(242,240,235,0.04)", border: "rgba(242,240,235,0.12)", label: "ANALYSIS COMPLETE" },
 };
 
-const verdictStyle = {
-  safe: { bg: "rgba(0,232,122,0.1)", border: "rgba(0,232,122,0.3)", text: "#00E87A" },
-  suspicious: { bg: "rgba(255,184,0,0.1)", border: "rgba(255,184,0,0.3)", text: "#FFB800" },
-  dangerous: { bg: "rgba(255,59,59,0.1)", border: "rgba(255,59,59,0.3)", text: "#FF3B3B" },
-};
+function renderText(text: string) {
+  return text.split("\n").map((line, i) => {
+    const trimmed = line.trim();
+    if (!trimmed) return <div key={i} style={{ height: 8 }} />;
+
+    const boldMatch = trimmed.match(/^\*\*(.*?)\*\*$/);
+    if (boldMatch) return (
+      <div key={i} style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: "#F2F0EB", marginBottom: 4 }}>
+        {boldMatch[1]}
+      </div>
+    );
+
+    if (trimmed.startsWith("- ") || trimmed.startsWith("• ") || trimmed.match(/^\d+\./)) {
+      const content = trimmed.replace(/^[-•]\s+/, "").replace(/^\d+\.\s+/, "");
+      const parts = content.split(/\*\*(.*?)\*\*/g);
+      return (
+        <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 6 }}>
+          <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#00E87A", flexShrink: 0, marginTop: 6 }} />
+          <div style={{ fontSize: 13, color: "rgba(242,240,235,0.75)", lineHeight: 1.6 }}>
+            {parts.map((p, j) => j % 2 === 1 ? <strong key={j} style={{ color: "#F2F0EB" }}>{p}</strong> : p)}
+          </div>
+        </div>
+      );
+    }
+
+    const parts = trimmed.split(/\*\*(.*?)\*\*/g);
+    return (
+      <div key={i} style={{ fontSize: 13, color: "rgba(242,240,235,0.7)", lineHeight: 1.7, marginBottom: 4 }}>
+        {parts.map((p, j) => j % 2 === 1 ? <strong key={j} style={{ color: "#F2F0EB", fontWeight: 500 }}>{p}</strong> : p)}
+      </div>
+    );
+  });
+}
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("url");
   const [input, setInput] = useState("");
   const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<ScanResult | null>(null);
+  const [agentResponse, setAgentResponse] = useState<string>("");
   const [agentMessages, setAgentMessages] = useState<string[]>([]);
   const [isMobile, setIsMobile] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -93,7 +77,6 @@ export default function Home() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-//cursor
   useEffect(() => {
     if (isMobile) return;
     let rx = 0, ry = 0, mx = 0, my = 0;
@@ -120,7 +103,7 @@ export default function Home() {
   const runScan = async () => {
     if (!input.trim() || scanning) return;
     setScanning(true);
-    setResult(null);
+    setAgentResponse("");
     setAgentMessages([]);
 
     const steps = [
@@ -129,12 +112,12 @@ export default function Home() {
       activeTab === "seller" ? " Querying community fraud database..." :
       activeTab === "review" ? " Fetching and analysing reviews..." :
       " Validating tracking number format...",
-      " Gemini is reasoning about the signals...",
-      " Saving findings to MongoDB Atlas...",
+      " Reasoning about the signals...",
+      " Saving findings...",
     ];
 
     for (let i = 0; i < steps.length; i++) {
-      await new Promise(r => setTimeout(r, 650));
+      await new Promise(r => setTimeout(r, 600));
       setAgentMessages(prev => [...prev, steps[i]]);
     }
 
@@ -145,13 +128,21 @@ export default function Home() {
         body: JSON.stringify({ tab: activeTab, input }),
       });
       const data = await res.json();
-      setResult(data);
+      if (data.verdict) {
+        setAgentResponse(data.verdict);
+      } else if (data.error) {
+        setAgentResponse(`Unable to complete analysis: ${data.error}\n\nPlease try again or check our community database.`);
+      } else {
+        setAgentResponse("Analysis complete. No response returned from agent.");
+      }
     } catch {
-      setResult(mockResults[activeTab]);
+      setAgentResponse("Connection error. Please check your internet and try again.");
     }
     setScanning(false);
   };
 
+  const verdict = agentResponse ? getVerdict(agentResponse) : null;
+  const vc = verdict ? verdictConfig[verdict] : null;
   const p = isMobile ? "16px" : "48px";
   const maxW = "1200px";
 
@@ -230,22 +221,22 @@ export default function Home() {
       <section style={{ minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:isMobile?"100px 16px 60px":"120px 48px 80px",textAlign:"center",position:"relative" }}>
         <div style={{ position:"absolute",top:"20%",left:"50%",transform:"translateX(-50%)",width:isMobile?400:800,height:isMobile?300:500,background:"radial-gradient(ellipse,rgba(0,232,122,0.07) 0%,transparent 70%)",pointerEvents:"none" }} />
 
+
         <h1 className="a2" style={{ fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:isMobile?"clamp(40px,11vw,52px)":"clamp(52px,7vw,88px)",lineHeight:1.0,letterSpacing:-2,maxWidth:860 }}>
           Stop online scams<br />before you{" "}
           <em style={{ fontStyle:"normal",color:"#00E87A" }}>pay</em>
         </h1>
 
         <p className="a3" style={{ fontSize:isMobile?15:17,fontWeight:300,color:"rgba(242,240,235,0.5)",maxWidth:520,lineHeight:1.7,marginTop:24,padding:isMobile?"0 8px":0 }}>
-          Paste a link, Instagram handle, product URL, or tracking number. Our system investigates the full fraud chain for you.
+          Paste a link, Instagram handle, product URL, or tracking number. Our AI investigates the full fraud chain — so you don&apos;t have to.
         </p>
 
-        <div className="a4" style={{ marginTop:48,width:"100%",maxWidth:680,padding:isMobile?"0 0px":0 }}>
+        <div className="a4" style={{ marginTop:48,width:"100%",maxWidth:680 }}>
           <div style={{ display:"flex",gap:4,background:"#0F1219",border:"1px solid rgba(242,240,235,0.08)",borderRadius:"12px 12px 0 0",padding:6 }}>
             {tabs.map(t=>(
-              <button key={t.id} onClick={()=>{ setActiveTab(t.id); setResult(null); setAgentMessages([]); }}
+              <button key={t.id} onClick={()=>{ setActiveTab(t.id); setAgentResponse(""); setAgentMessages([]); }}
                 style={{ flex:1,padding:isMobile?"7px 2px":"8px 4px",fontSize:isMobile?10:12,fontWeight:activeTab===t.id?500:400,color:activeTab===t.id?"#F2F0EB":"rgba(242,240,235,0.45)",borderRadius:8,border:"none",background:activeTab===t.id?"#161B26":"transparent",fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s" }}>
-                {!isMobile && " " + t.label}
-                {isMobile && <div style={{ fontSize:9,marginTop:2,color:"inherit" }}>{t.label}</div>}
+                {isMobile ? <div style={{ fontSize:9,marginTop:2 }}>{t.label}</div> : t.label}
               </button>
             ))}
           </div>
@@ -254,14 +245,12 @@ export default function Home() {
               placeholder={tabs.find(t=>t.id===activeTab)?.placeholder}
               style={{ flex:1,background:"transparent",border:"none",padding:isMobile?"14px 14px":"18px 20px",fontFamily:"'DM Sans',sans-serif",fontSize:isMobile?14:15,color:"#F2F0EB",fontWeight:300 }} />
             <button onClick={runScan} style={{ background:"#00E87A",color:"#080A0F",border:"none",padding:isMobile?"0 16px":"0 28px",fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:isMobile?13:14,whiteSpace:"nowrap",minWidth:isMobile?80:110 }}>
-              {scanning
-                ? <div style={{ width:16,height:16,border:"2px solid rgba(8,10,15,0.3)",borderTop:"2px solid #080A0F",borderRadius:"50%",animation:"spin 0.6s linear infinite",margin:"0 auto" }} />
-                : isMobile ? "Scan" : "Scan now"}
+              {scanning ? <div style={{ width:16,height:16,border:"2px solid rgba(8,10,15,0.3)",borderTop:"2px solid #080A0F",borderRadius:"50%",animation:"spin 0.6s linear infinite",margin:"0 auto" }} /> : isMobile ? "Scan" : "Scan now"}
             </button>
           </div>
         </div>
 
-        {agentMessages.length>0 && (
+        {agentMessages.length > 0 && (
           <div style={{ width:"100%",maxWidth:680,marginTop:12,background:"#0F1219",border:"1px solid rgba(242,240,235,0.08)",borderRadius:12,padding:"14px 18px",display:"flex",flexDirection:"column",gap:8,animation:"fadeUp 0.3s ease both" }}>
             {agentMessages.map((msg,i)=>(
               <div key={i} className="agent-msg" style={{ animationDelay:`${i*0.1}s` }}>
@@ -272,26 +261,24 @@ export default function Home() {
           </div>
         )}
 
-        {result && (
-          <div style={{ width:"100%",maxWidth:680,marginTop:12,border:`1px solid ${verdictStyle[result.verdict].border}`,borderRadius:12,overflow:"hidden",animation:"fadeUp 0.4s ease both" }}>
-            <div style={{ padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid rgba(242,240,235,0.08)",background:verdictStyle[result.verdict].bg }}>
-              <div style={{ display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",borderRadius:100,background:verdictStyle[result.verdict].bg,border:`1px solid ${verdictStyle[result.verdict].border}`,fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:12,color:verdictStyle[result.verdict].text,letterSpacing:"0.05em" }}>
-                ● {result.label}
+        {agentResponse && vc && (
+          <div style={{ width:"100%",maxWidth:680,marginTop:12,border:`1px solid ${vc.border}`,borderRadius:12,overflow:"hidden",animation:"fadeUp 0.4s ease both" }}>
+            <div style={{ padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",background:vc.bg,borderBottom:"1px solid rgba(242,240,235,0.08)" }}>
+              <div style={{ display:"inline-flex",alignItems:"center",gap:8,padding:"5px 14px",borderRadius:100,border:`1px solid ${vc.border}`,fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:12,color:vc.color,letterSpacing:"0.06em" }}>
+                <div style={{ width:7,height:7,borderRadius:"50%",background:vc.color,animation:"pulse 2s infinite" }} />
+                {vc.label}
               </div>
-              <div style={{ fontSize:11,color:"rgba(242,240,235,0.35)" }}>Gemini + MongoDB</div>
             </div>
-            <div style={{ padding:"14px 18px",fontSize:13,color:"rgba(242,240,235,0.65)",lineHeight:1.6,borderBottom:"1px solid rgba(242,240,235,0.08)" }}>{result.summary}</div>
-            <div style={{ padding:"14px 18px",display:"flex",flexDirection:"column",gap:10 }}>
-              {result.signals.map((s,i)=>(
-                <div key={i} style={{ display:"flex",alignItems:"flex-start",gap:10,fontSize:13,color:"rgba(242,240,235,0.6)" }}>
-                  <div style={{ width:7,height:7,borderRadius:"50%",background:s.type==="ok"?"#00E87A":s.type==="warn"?"#FFB800":"#FF3B3B",flexShrink:0,marginTop:4 }} />
-                  {s.text}
-                </div>
-              ))}
+
+            {/* Body — formatted agent response */}
+            <div style={{ padding:"16px 18px" }}>
+              {renderText(agentResponse)}
             </div>
-            {result.action && <div style={{ padding:"12px 18px",borderTop:"1px solid rgba(242,240,235,0.08)",fontSize:13,color:"#FFB800",display:"flex",gap:8,alignItems:"flex-start" }}>⚠ {result.action}</div>}
-            <div style={{ padding:"10px 18px",borderTop:"1px solid rgba(242,240,235,0.08)",fontSize:11,color:"rgba(242,240,235,0.3)",display:"flex",gap:8 }}>
-              <span style={{ color:"#00E87A" }}>●</span> Saved to community database · MongoDB Atlas
+
+            {/* Footer */}
+            <div style={{ padding:"10px 18px",borderTop:"1px solid rgba(242,240,235,0.08)",fontSize:11,color:"rgba(242,240,235,0.3)",display:"flex",gap:8,alignItems:"center" }}>
+              <span style={{ color:"#00E87A" }}>●</span>
+              Analysis saved to community database.
             </div>
           </div>
         )}
@@ -405,9 +392,9 @@ export default function Home() {
           <div className="reveal">
             <div style={{ fontSize:11,fontWeight:500,color:"#00E87A",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:16 }}>AI for good</div>
             <h2 style={{ fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:isMobile?"clamp(28px,7vw,36px)":"clamp(30px,3vw,42px)",letterSpacing:-1.5,lineHeight:1.1,marginBottom:20 }}>Fraud detection that used to take hours. Now takes 2 seconds.</h2>
-            <p style={{ fontSize:14,color:"rgba(242,240,235,0.5)",lineHeight:1.8,marginBottom:16 }}>Before SafeShop, protecting yourself meant manually checking domain registrars, reading reviews, verifying seller credentials before every purchase. That is Exhausting. Most people would rather just skip it.</p>
+            <p style={{ fontSize:14,color:"rgba(242,240,235,0.5)",lineHeight:1.8,marginBottom:16 }}>Before SafeShop, protecting yourself meant manually checking domain registrars, reading reviews, verifying seller credentials before every purchase. Exhausting. Most people skip it.</p>
             <p style={{ fontSize:14,color:"rgba(242,240,235,0.5)",lineHeight:1.8,marginBottom:28 }}>We automated every single step. Gemini reasons across all signals. MongoDB Atlas remembers every seller ever flagged. Every scan protects the next person too.</p>
-            {["No technical knowledge needed. Just paste and go","Every scan makes the community smarter for everyone","Free to use."].map(b=>(
+            {["No technical knowledge needed — just paste and go","Every scan makes the community smarter for everyone","Free forever — safety shouldn't cost extra"].map(b=>(
               <div key={b} style={{ display:"flex",alignItems:"flex-start",gap:10,fontSize:14,color:"rgba(242,240,235,0.6)",marginBottom:12 }}>
                 <div style={{ width:18,height:18,background:"rgba(0,232,122,0.1)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#00E87A",flexShrink:0,marginTop:1 }}>✓</div>
                 {b}
@@ -441,7 +428,7 @@ export default function Home() {
             <div style={{ width:8,height:8,background:"#00E87A",borderRadius:"50%",animation:"pulse 2s infinite" }} />
             SafeShop
           </div>
-          <div>Made by Bipasha Gayary </div>
+          <div>Made by Bipasha Gayary</div>
           <div>2026</div>
         </div>
       </footer>
