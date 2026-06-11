@@ -3,7 +3,7 @@
 
 SafeShop is a conversational AI agent that investigates the full online shopping fraud chain that includes fake sellers, cloned checkout pages, manipulated reviews, and delivery fraud. Every scan strengthens a community fraud database powered by MongoDB Atlas.
 
-**Live demo:** https://safeshop-155586116526.asia-south1.run.app
+**Live demo:**  https://safeshop-155586116526.asia-south1.run.app
 
 
 ## The Problem
@@ -95,6 +95,7 @@ SafeShop intercepts the full fraud chain in a single conversation:
 | Agent | Google Cloud Agent Platform (Gemini 1.5 Pro) |
 | MCP Server | Python 3.11 · FastMCP 1.27.2 · Streamable HTTP |
 | Frontend | Next.js 16 · TypeScript · Tailwind CSS |
+| Backend | Python 3.11
 | Database | MongoDB Atlas M0 · pymongo |
 | Hosting | Google Cloud Run (asia-south1) |
 | External APIs | WHOIS XML API · Google Safe Browsing · AfterShip |
@@ -132,6 +133,10 @@ safeshop/
 
 ```
 safeshop/
+├── backend/                # Reasoning Engine & Agent code
+│   ├── app.py              # Main application entry
+│   ├── agent.py            # Vertex AI agent definitions
+│   └── requirements.txt    # Python dependencies
 ├── tools/
 │   └── combined/           # Single MCP server (all tools)
 │       ├── main.py         # FastMCP app + domain + seller tools
@@ -193,7 +198,16 @@ gcloud config set project safeshop-app
 gcloud services enable aiplatform.googleapis.com run.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com
 ```
 
-### 4. Deploy the MCP server
+### 4. Set up backend agent
+
+```bash
+cd backend
+python -m venv .venv311
+source .venv311/bin/activate  # On Windows: .venv311\Scripts\activate
+pip install -r requirements.txt
+```
+
+### 5. Deploy the MCP server
 
 ```bash
 cd tools/combined
@@ -208,7 +222,7 @@ GOOGLE_SAFEBROWSING_KEY="your-key",\
 IP_SALT="your-random-salt"
 ```
 
-### 5. Set up Agent Platform
+### 6. Set up Agent Platform
 
 1. Go to console.cloud.google.com/agent-platform/studio
 2. Create a new agent with Gemini 1.5 Pro/ 2.5 Flash
@@ -216,7 +230,7 @@ IP_SALT="your-random-salt"
 4. Paste the agent instructions. (Read `INSTRUCTIONS.md`)
 5. Deploy the agent
 
-### 6. Deploy the frontend
+### 7. Deploy the frontend
 
 ```bash
 cd frontend
