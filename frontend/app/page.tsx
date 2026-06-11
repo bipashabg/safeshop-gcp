@@ -12,9 +12,22 @@ const tabs: { id: Tab; label: string; placeholder: string }[] = [
 
 function getVerdict(text: string): "safe" | "suspicious" | "dangerous" | "neutral" {
   const lower = text.toLowerCase();
-  if (lower.includes("dangerous") || lower.includes("do not") || lower.includes("fraud")) return "dangerous";
-  if (lower.includes("suspicious") || lower.includes("caution") || lower.includes("warning")) return "suspicious";
-  if (lower.includes("safe") || lower.includes("legitimate") || lower.includes("genuine") || lower.includes("low risk")) return "safe";
+
+  const verdictMatch = lower.match(/verdict\s*:\s*(safe|dangerous|suspicious)/);
+  if (verdictMatch) {
+    const v = verdictMatch[1];
+    if (v === "safe") return "safe";
+    if (v === "dangerous") return "dangerous";
+    if (v === "suspicious") return "suspicious";
+  }
+
+  const hasSafe = lower.includes("safe") || lower.includes("legitimate") || lower.includes("genuine") || lower.includes("low risk");
+  const hasDangerous = lower.includes("dangerous") || lower.includes("fraud");
+  const hasSuspicious = lower.includes("suspicious") || lower.includes("caution") || lower.includes("warning");
+
+  if (hasDangerous && !hasSafe) return "dangerous";
+  if (hasSuspicious && !hasSafe) return "suspicious";
+  if (hasSafe) return "safe";
   return "neutral";
 }
 
